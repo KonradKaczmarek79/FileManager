@@ -5,7 +5,7 @@ from typing import Callable
 # run the user's program in our generated folders
 os.chdir('module/root_folder')
 
-possible_commands = {"pwd", "cd", "ls", "mkdir", "rm", "mv"}
+possible_commands = {"pwd", "cd", "ls", "mkdir", "rm", "mv", "cp"}
 relative_options = {".", ".."}
 
 # put your code here
@@ -18,6 +18,7 @@ def change_dir(cd_option: str):
     except FileNotFoundError:
         return "Invalid command"
 
+
 def convert_human_readable(value: int) -> str:
     if value < 1024:
         return f"{value}B"
@@ -27,6 +28,7 @@ def convert_human_readable(value: int) -> str:
         return f"{value // 1024}MB"
     else:
         return f"{value // 1024}GB"
+
 
 def get_info_with_filesize(human_readable_size: bool | None = False):
     subdirectories = ""
@@ -123,9 +125,14 @@ def move_content(paths: str) -> None | str:
     """
     paths = paths.split(" ")
     if len(paths) != 2:
-        return "Specify the current name of the file or directory and the new name"
+        return "Specify the current name of the file or directory and the new location and/or name"
 
     if os.path.exists(paths[1]):
+        # if os.path.isdir(old_name) and os.path.isdir(new_name): -> print("The file or directory already exists")
+        # otherwise try to create move and create file with name from paths[1]
+        if os.path.isfile(paths[0]) and os.path.isdir(paths[1]):
+            shutil.move(paths[0], paths[1])
+            return None
         return "The file or directory already exists"
 
     try:
@@ -144,6 +151,31 @@ def run_fn_and_check_result(fn: Callable, fn_option: str) -> None:
     result = fn(fn_option)
     if result is not None:
         print(result)
+
+
+def copy_file(paths: str) -> None | str:
+    """
+    Copies a specified file to the specified directory
+
+    :param paths: (str) it should contain two words 1. source (file) path and target (directory) path
+    :return: None or string in the case of error (no file specified, no directory specified,
+    more than 2 elements in paths string, or if the file already exists in target directory.
+    """
+    paths = paths.split(" ")
+
+    if len(paths) < 2:
+        return "Specify the file"
+    elif len(paths) > 2:
+        return "Specify the current name of the file or directory and the new location and/or name"
+
+    if os.path.isfile(paths[0]) and os.path.isdir(paths[1]):
+
+        if os.path.exists(os.path.join(paths[1], paths[0])):
+            return f"{paths[0]} already exists in this directory"
+        shutil.copy(paths[0], paths[1])
+        return None
+    else:
+        return "No such file or directory"
 
 
 while command != "quit":
@@ -169,5 +201,7 @@ while command != "quit":
         run_fn_and_check_result(remove_item, option)
     elif command == "mv":
         run_fn_and_check_result(move_content, option)
+    elif command == "cp":
+        run_fn_and_check_result(copy_file, option)
 
     command = input()

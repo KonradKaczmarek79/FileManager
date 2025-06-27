@@ -1,6 +1,7 @@
 import os
 import shutil
 from typing import Callable
+import re
 
 # run the user's program in our generated folders
 os.chdir('module/root_folder')
@@ -103,42 +104,92 @@ def remove_file(file_path: str) -> None | str:
         return "No such file or directory"
 
 
+def remove_files_per_extension(extension: str) -> None | str:
+    """
+    Removes files with the specified extension
+
+    :param extension: (str) extension in format .abc
+    :return: None or error message (if extension not found in current directory)
+    """
+    # filter returns an iterator so it is
+    files_to_delete = list(filter(lambda filename: filename.endswith(extension), os.listdir()))
+
+    if not files_to_delete:
+        return f"File extension {extension} not found in this directory"
+    else:
+        for file in files_to_delete:
+            remove_file(file)
+        return None
+
+
 def remove_item(item_path: str) -> None | str:
     if not item_path:
         return "Specify the file or directory"
 
     result = "No such file or directory"
-
-    if os.path.isfile(item_path):
+    if re.match(r"^[.][a-zA-Z]+$", item_path):
+        result = remove_files_per_extension(extension=item_path)
+    elif os.path.isfile(item_path):
         result = remove_file(item_path)
     elif os.path.isdir(item_path):
         result = remove_directory(item_path)
     return result
 
 
-def move_content(paths: str) -> None | str:
+def move_content(path_source: str, path_target: str) -> None | str:
     """
     Moves the file content or directory content to specified path (second word in passed string)
 
+    :param path_source:
+    :param path_target:
     :param paths: (str) it should contain two words 1. source data path and target path
     :return: string in the case of error of if a target item already exists None otherwise
     """
-    paths = paths.split(" ")
-    if len(paths) != 2:
-        return "Specify the current name of the file or directory and the new location and/or name"
+    # paths = paths.split(" ")
+    # if len(paths) != 2:
+    #     return "Specify the current name of the file or directory and the new location and/or name"
 
-    if os.path.exists(paths[1]):
+    if os.path.exists(path_target):
         # if os.path.isdir(old_name) and os.path.isdir(new_name): -> print("The file or directory already exists")
         # otherwise try to create move and create file with name from paths[1]
-        if os.path.isfile(paths[0]) and os.path.isdir(paths[1]):
-            shutil.move(paths[0], paths[1])
+        if os.path.isfile(path_source) and os.path.isdir(path_target):
+            shutil.move(path_source, path_target)
             return None
         return "The file or directory already exists"
 
     try:
-        shutil.move(paths[0], paths[1])
+        shutil.move(path_source, path_target)
     except FileNotFoundError:
         return "No such file or directory"
+
+def move_with_overwrite_confirmation(source, target):
+    file_path = os.path.join(target, source)
+
+    if os.path.exists(file_path):
+        answer = input(f"{source} already exists in this directory. Replace? (y/n)\n")
+        while answer not in {"y", "n"}:
+            answer = input(f"{source} already exists in this directory. Replace? (y/n)\n")
+        if answer.lower() == "n":
+            return None
+        elif answer.lower() == "y":
+            os.remove(file_path)
+    if os.path.isdir(target):
+        shutil.move(source, target)
+    return None
+
+def move_one_or_many(paths: str) -> None | str:
+    paths = paths.split(" ")
+    if len(paths) != 2:
+        return "Specify the current name of the file or directory and the new location and/or name"
+
+    if re.match(r"^[.][a-zA-Z]+$", paths[0]):
+        files_to_move = list(filter(lambda filename: filename.endswith(paths[0]), os.listdir()))
+        if not files_to_move:
+            return f"File extension {paths[0]} not found in this directory"
+        for file in files_to_move:
+            move_with_overwrite_confirmation(file, paths[1])
+    else:
+        return move_content(paths[0], paths[1])
 
 
 def run_fn_and_check_result(fn: Callable, fn_option: str) -> None:
@@ -159,7 +210,7 @@ def copy_file(paths: str) -> None | str:
 
     :param paths: (str) it should contain two words 1. source (file) path and target (directory) path
     :return: None or string in the case of error (no file specified, no directory specified,
-    more than 2 elements in paths string, or if the file already exists in target directory.
+    more than 2 elements in paths string, or if the file already exists in target directory).
     """
     paths = paths.split(" ")
 
@@ -176,6 +227,57 @@ def copy_file(paths: str) -> None | str:
         return None
     else:
         return "No such file or directory"
+
+def copy_file_v2(source_path: str, target_path: str) -> None | str:
+    """
+    Copies a specified file to the specified directory
+
+    :param target_path: (str) source file to copy
+    :param source_path: (str) target folder to copy
+    :return: None or string in the case when the file already exists in target directory or when file or dir not exists.
+    """
+
+    if os.path.isfile(source_path) and os.path.isdir(target_path):
+
+        if os.path.exists(os.path.join(target_path, source_path)):
+            return f"{source_path} already exists in this directory"
+        shutil.copy(source_path, target_path)
+        return None
+    else:
+        return "No such file or directory"
+
+def copy_with_overwrite_confirmation(source, target):
+    file_path = os.path.join(target, source)
+
+    if os.path.exists(file_path):
+        answer = input(f"{source} already exists in this directory. Replace? (y/n)\n")
+        while answer not in {"y", "n"}:
+            answer = input(f"{source} already exists in this directory. Replace? (y/n)\n")
+        if answer.lower() == "n":
+            return None
+    shutil.copy(source, target)
+    return None
+
+
+def copy_files(paths: str) -> None | str:
+    paths = paths.split(" ")
+
+    if len(paths) < 2:
+        return "Specify the file"
+    elif len(paths) > 2:
+        return "Specify the current name of the file or directory and the new location and/or name"
+
+    if re.match(r"^[.][a-zA-Z]+$", paths[0]):
+        files_to_copy = list(filter(lambda filename: filename.endswith(paths[0]), os.listdir()))
+        if len(files_to_copy) == 0:
+            return f"File extension {paths[0]} not found in this directory"
+        else:
+            for file in files_to_copy:
+                # shutil.copy(file, paths[1])
+                copy_with_overwrite_confirmation(file, paths[1])
+        return None
+    else:
+        return copy_file_v2(paths[0], paths[1])
 
 
 while command != "quit":
@@ -200,8 +302,8 @@ while command != "quit":
     elif command == "rm":
         run_fn_and_check_result(remove_item, option)
     elif command == "mv":
-        run_fn_and_check_result(move_content, option)
+        run_fn_and_check_result(move_one_or_many, option)
     elif command == "cp":
-        run_fn_and_check_result(copy_file, option)
+        run_fn_and_check_result(copy_files, option)
 
     command = input()
